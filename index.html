@@ -79,7 +79,7 @@
             color: var(--accent-cyan);
         }
 
-        /* Auth Screen */
+        /* Auth Screen (Login / Register) */
         .auth-screen {
             position: fixed;
             top: 0;
@@ -429,7 +429,7 @@
                 <p style="color: var(--text-sub); font-size: 12px; margin: 8px 0 5px;">প্রতিটি বিজ্ঞাপনের জন্য পাবেন TK <span id="task-reward-display">1.00</span></p>
                 
                 <div style="background: rgba(255, 183, 3, 0.1); border: 1px solid rgba(255, 183, 3, 0.3); padding: 8px 10px; border-radius: 8px; font-size: 11px; color: #ffb703; margin: 10px 0 15px; text-align: center;">
-                    <i class="fa-solid fa-triangle-exclamation"></i> অ্যাডের ভেতর ২০ সেকেন্ড না থেকে অ্যাপে ফিরে আসলে টাস্ক বাতিল হয়ে যাবে এবং কোনো ব্যালেন্স জমা হবে না।
+                    <i class="fa-solid fa-triangle-exclamation"></i> অ্যাডের ভিতর ২০ সেকেন্ড না থাকলে আপনার একাউন্টে ব্যালেন্স জমা হবে না।
                 </div>
 
                 <div style="font-size: 13px; margin-bottom: 10px;">
@@ -555,9 +555,6 @@
     let isLoginMode = false;
     let selectedPaymentMethod = "bkash";
 
-    let isWatchingAd = false;
-    let adTimerInterval = null;
-
     const urlParams = new URLSearchParams(window.location.search);
     const referredBy = urlParams.get('startapp') ? urlParams.get('startapp').replace('ref_', '') : null;
 
@@ -650,6 +647,7 @@
                 document.getElementById('total-ref-count').innerText = userData.totalRef || 0;
                 document.getElementById('task-limit-text').innerText = `${userData.completedTasks || 0} / ${adminSettings.taskLimit || 20}`;
                 
+                // ডাইনামিক ইউনিক রেফারেন্স লিংক জেনারেটর
                 let referBase = adminSettings.referBaseLink || "https://5apon-cpu.github.io/";
                 if (!referBase.endsWith("/")) {
                     referBase += "/";
@@ -662,9 +660,10 @@
         loadWithdrawHistory();
     }
 
-    // ২০ সেকেন্ড টাইমার এবং পেজ ছেড়ে আসার ট্র্যাকিং লজিক
+    // ২০ সেকেন্ড টাইমারসহ অ্যাড ও টাস্ক লজিক
     function watchAd() {
         const limit = parseInt(adminSettings.taskLimit) || 20;
+        const reward = parseFloat(adminSettings.taskReward) || 1.00;
 
         if ((userData.completedTasks || 0) >= limit) {
             showToast("আজকের টাস্ক লিমিট শেষ!");
@@ -679,39 +678,21 @@
         const randomAd = dynamicAdsList[Math.floor(Math.random() * dynamicAdsList.length)];
         window.open(randomAd, '_blank');
 
-        isWatchingAd = true;
         const adBtn = document.getElementById('watch-ad-btn');
         adBtn.disabled = true;
         let timeLeft = 20;
         
         adBtn.innerHTML = `<i class="fa-solid fa-clock"></i> অপেক্ষা করুন (${timeLeft} সেকেন্ড)...`;
 
-        // ইউজার অ্যাপ বা ট্যাব ছেড়ে চলে গেছে কি না তা মনিটর করা
-        const visibilityHandler = () => {
-            if (document.hidden && isWatchingAd) {
-                cancelTaskDueToLeaving();
-            }
-        };
-        document.addEventListener("visibilitychange", visibilityHandler);
-
-        adTimerInterval = setInterval(() => {
-            if (!isWatchingAd) {
-                clearInterval(adTimerInterval);
-                return;
-            }
-
+        const timerInterval = setInterval(() => {
             timeLeft--;
             if (timeLeft > 0) {
                 adBtn.innerHTML = `<i class="fa-solid fa-clock"></i> অপেক্ষা করুন (${timeLeft} সেকেন্ড)...`;
             } else {
-                clearInterval(adTimerInterval);
-                document.removeEventListener("visibilitychange", visibilityHandler);
-                isWatchingAd = false;
-                
+                clearInterval(timerInterval);
                 adBtn.disabled = false;
                 adBtn.innerHTML = `<i class="fa-solid fa-play"></i> অ্যাড চালু করুন`;
 
-                const reward = parseFloat(adminSettings.taskReward) || 1.00;
                 const newCompletedTasks = (userData.completedTasks || 0) + 1;
                 const newBalance = parseFloat(userData.balance || 0) + reward;
 
@@ -728,17 +709,6 @@
                 });
             }
         }, 1000);
-
-        window.cancelTaskDueToLeaving = function() {
-            if (!isWatchingAd) return;
-            clearInterval(adTimerInterval);
-            document.removeEventListener("visibilitychange", visibilityHandler);
-            isWatchingAd = false;
-
-            adBtn.disabled = false;
-            adBtn.innerHTML = `<i class="fa-solid fa-play"></i> অ্যাড চালু করুন`;
-            showToast("অ্যাডের ভেতর ২০ সেকেন্ড না থাকায় টাস্ক বাতিল হয়েছে!");
-        }
     }
 
     function giveUplineReward(uplineId) {
