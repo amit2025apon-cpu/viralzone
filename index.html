@@ -44,7 +44,6 @@
             box-shadow: 0 0 25px rgba(0,0,0,0.8);
         }
 
-        /* App Custom Logo Badge */
         .brand-logo-container {
             display: flex;
             align-items: center;
@@ -79,7 +78,6 @@
             color: var(--accent-cyan);
         }
 
-        /* Auth Screen */
         .auth-screen {
             position: fixed;
             top: 0;
@@ -106,7 +104,6 @@
             margin-top: 5px;
         }
 
-        /* Top Bar */
         .top-bar {
             padding: 15px 20px;
             display: flex;
@@ -147,11 +144,11 @@
             color: var(--text-sub);
         }
 
-        /* Main Content */
         .content {
             flex: 1;
             padding: 15px;
             padding-bottom: 90px;
+            overflow-y: auto;
         }
 
         .tab-page {
@@ -162,7 +159,6 @@
             display: block;
         }
 
-        /* Balance Card */
         .balance-card {
             background: linear-gradient(135deg, #4a00e0, #8e2de2);
             border-radius: 20px;
@@ -205,7 +201,6 @@
             margin-bottom: 8px;
         }
 
-        /* Section Box */
         .section-box {
             background: var(--card-bg);
             border-radius: 20px;
@@ -241,7 +236,6 @@
             margin-bottom: 10px;
         }
 
-        /* Method Selector */
         .method-selector {
             display: flex;
             gap: 10px;
@@ -266,8 +260,7 @@
             background: rgba(0, 210, 255, 0.05);
         }
 
-        /* Withdraw History Item */
-        .history-item {
+        .history-item, .downline-item {
             background: #090d16;
             border: 1px solid rgba(255,255,255,0.08);
             padding: 12px;
@@ -279,7 +272,21 @@
             align-items: center;
         }
 
-        /* Bottom Nav */
+        .banner-ad-box {
+            width: 100%;
+            background: #090d16;
+            border: 1px dashed rgba(0, 210, 255, 0.4);
+            border-radius: 12px;
+            padding: 12px;
+            margin: 15px 0;
+            text-align: center;
+            min-height: 70px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
         .bottom-nav {
             position: fixed;
             bottom: 0;
@@ -331,7 +338,6 @@
         }
     </style>
 
-    <!-- Firebase SDK Scripts -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
@@ -355,7 +361,12 @@
 
         <div id="register-fields">
             <input type="text" class="form-control" placeholder="আপনার নাম" id="reg-name">
+            <div style="text-align: left; margin-bottom: 5px;">
+                <label style="font-size: 11px; color: var(--text-sub);">রেফার কোড (ঐচ্ছিক)</label>
+                <input type="text" class="form-control" placeholder="রেফার কোড দিন" id="reg-ref-code">
+            </div>
         </div>
+        
         <input type="email" class="form-control" placeholder="ইমেল বা মোবাইল নম্বর" id="reg-email">
         <input type="password" class="form-control" placeholder="পাসওয়ার্ড" id="reg-password">
 
@@ -396,6 +407,13 @@
                 </button>
             </div>
 
+            <!-- হোম পেজে ব্যানার অ্যাড বক্স -->
+            <div class="section-box" style="padding: 12px; margin-bottom: 15px;">
+                <div class="banner-ad-box" id="home-banner-ad-container" style="margin: 0; border-color: rgba(0, 210, 255, 0.3);">
+                    <span style="font-size: 11px; color: var(--text-sub);">ব্যানার বিজ্ঞাপন লোড হচ্ছে...</span>
+                </div>
+            </div>
+
             <div class="grid-cards">
                 <div class="card" onclick="switchTab('task')">
                     <div class="card-icon"><i class="fa-solid fa-bolt"></i></div>
@@ -429,7 +447,12 @@
                 <p style="color: var(--text-sub); font-size: 12px; margin: 8px 0 5px;">প্রতিটি বিজ্ঞাপনের জন্য পাবেন TK <span id="task-reward-display">1.00</span></p>
                 
                 <div style="background: rgba(255, 183, 3, 0.1); border: 1px solid rgba(255, 183, 3, 0.3); padding: 8px 10px; border-radius: 8px; font-size: 11px; color: #ffb703; margin: 10px 0 15px; text-align: center;">
-                    <i class="fa-solid fa-triangle-exclamation"></i> অ্যাডের ভেতর ২০ সেকেন্ড না থেকে অ্যাপে ফিরে আসলে টাস্ক বাতিল হয়ে যাবে এবং কোনো ব্যালেন্স জমা হবে না।
+                    <i class="fa-solid fa-triangle-exclamation"></i> অ্যাডের ভেতর ২০ সেকেন্ড না থেকে অ্যাপে ফিরে আসলে টাস্ক বাতিল হয়ে যাবে!
+                </div>
+
+                <!-- টাস্ক পেজে ব্যানার অ্যাড বক্স -->
+                <div class="banner-ad-box" id="task-banner-ad-container">
+                    <span style="font-size: 11px; color: var(--text-sub);">ব্যানার বিজ্ঞাপন লোড হচ্ছে...</span>
                 </div>
 
                 <div style="font-size: 13px; margin-bottom: 10px;">
@@ -469,6 +492,16 @@
                 <input type="text" class="form-control" id="ref-link-input" readonly style="text-align: center; font-size: 12px;">
                 <button class="action-btn" onclick="copyRefLink()"><i class="fa-solid fa-copy"></i> লিংক কপি করুন</button>
             </div>
+
+            <!-- ডাউনলাইন ইউজার লিস্ট সেকশন -->
+            <div class="section-box" style="text-align: left;">
+                <h3 style="font-size: 15px; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px;">
+                    <i class="fa-solid fa-user-group"></i> আমার রেফারকৃত ইউজারগণ
+                </h3>
+                <div id="downline-users-list">
+                    <p style="font-size: 12px; color: var(--text-sub); text-align: center; padding: 10px;">কোনো রেফারকৃত ইউজার নেই</p>
+                </div>
+            </div>
         </div>
 
         <!-- PAGE 5: WALLET -->
@@ -495,7 +528,6 @@
                 <button class="action-btn" onclick="submitWithdraw()">উইথড্র রিকোয়েস্ট পাঠান</button>
             </div>
 
-            <!-- Withdraw History Section -->
             <div class="section-box" style="text-align: left;">
                 <h3 style="font-size: 15px; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px;">
                     <i class="fa-solid fa-history"></i> উইথড্র হিস্টরি
@@ -552,6 +584,10 @@
     let userData = {};
     let adminSettings = { taskReward: 1, taskLimit: 20, referBonus: 200, referBaseLink: "https://5apon-cpu.github.io/", telegramLink: "https://t.me", videoLink: "https://youtube.com" };
     let dynamicAdsList = [];
+    let bannerAdsList = [];
+    let currentBannerIndex = 0;
+    let bannerInterval = null;
+
     let isLoginMode = false;
     let selectedPaymentMethod = "bkash";
 
@@ -559,7 +595,13 @@
     let adTimerInterval = null;
 
     const urlParams = new URLSearchParams(window.location.search);
-    const referredBy = urlParams.get('startapp') ? urlParams.get('startapp').replace('ref_', '') : null;
+    const urlRefCode = urlParams.get('startapp') ? urlParams.get('startapp').replace('ref_', '') : null;
+
+    window.addEventListener('DOMContentLoaded', () => {
+        if (urlRefCode) {
+            document.getElementById('reg-ref-code').value = urlRefCode;
+        }
+    });
 
     auth.onAuthStateChanged((user) => {
         if (user) {
@@ -584,6 +626,7 @@
         const email = document.getElementById('reg-email').value.trim();
         const password = document.getElementById('reg-password').value.trim();
         const name = document.getElementById('reg-name').value.trim();
+        const refCodeInput = document.getElementById('reg-ref-code').value.trim();
 
         if (!email || !password) {
             showToast("দয়া করে ইমেল এবং পাসওয়ার্ড দিন!");
@@ -599,13 +642,23 @@
             }
             auth.createUserWithEmailAndPassword(email, password).then((cred) => {
                 const uid = cred.user.uid;
+                
+                if (refCodeInput) {
+                    db.collection("users").doc(refCodeInput).get().then((uDoc) => {
+                        if (uDoc.exists) {
+                            const currentRefs = uDoc.data().totalRef || 0;
+                            db.collection("users").doc(refCodeInput).update({ totalRef: currentRefs + 1 });
+                        }
+                    });
+                }
+
                 db.collection("users").doc(uid).set({
                     username: name,
                     email: email,
                     balance: 0,
                     totalRef: 0,
                     completedTasks: 0,
-                    referredBy: referredBy || null,
+                    referredBy: refCodeInput || null,
                     refRewarded: false,
                     isBlocked: false,
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -626,6 +679,15 @@
                 adminSettings = doc.data();
                 document.getElementById('task-reward-display').innerText = adminSettings.taskReward || "1.00";
             }
+        });
+
+        // ফায়ারবেস থেকে একাধিক ব্যানার অ্যাড রিয়েলটাইমে ফেচ করা
+        db.collection("banner_ads").onSnapshot((snapshot) => {
+            bannerAdsList = [];
+            snapshot.forEach(doc => {
+                bannerAdsList.push(doc.data().url);
+            });
+            startBannerRotation();
         });
 
         db.collection("dynamic_ads").onSnapshot((snapshot) => {
@@ -659,10 +721,68 @@
             }
         });
 
+        loadDownlineUsers();
         loadWithdrawHistory();
     }
 
-    // ২০ সেকেন্ড টাইমার এবং পেজ ছেড়ে আসার ট্র্যাকিং লজিক
+    // অটোমেটিক ব্যানার পরিবর্তন (রোটেট) করার ফাংশন - হোম ও টাস্ক উভয় পেজের জন্য (প্রতি ২০ সেকেন্ড পর পর)
+    function startBannerRotation() {
+        if (bannerInterval) clearInterval(bannerInterval);
+
+        const updateBanners = () => {
+            const homeContainer = document.getElementById('home-banner-ad-container');
+            const taskContainer = document.getElementById('task-banner-ad-container');
+
+            if (bannerAdsList.length === 0) {
+                if (homeContainer) homeContainer.innerHTML = `<span style="font-size: 11px; color: var(--text-sub);">কোনো ব্যানার বিজ্ঞাপন নেই</span>`;
+                if (taskContainer) taskContainer.innerHTML = `<span style="font-size: 11px; color: var(--text-sub);">কোনো ব্যানার বিজ্ঞাপন নেই</span>`;
+                return;
+            }
+
+            const currentUrl = bannerAdsList[currentBannerIndex];
+            const adHtml = `<iframe src="${currentUrl}" style="width: 100%; height: 60px; border: none; border-radius: 8px;" scrolling="no"></iframe>`;
+
+            if (homeContainer) homeContainer.innerHTML = adHtml;
+            if (taskContainer) taskContainer.innerHTML = adHtml;
+
+            currentBannerIndex = (currentBannerIndex + 1) % bannerAdsList.length;
+        };
+
+        updateBanners();
+        if (bannerAdsList.length > 1) {
+            bannerInterval = setInterval(updateBanners, 20000); // প্রতি ২০ সেকেন্ড (২০০০০ মিলিসেকেন্ড) পর পর ব্যানার পরিবর্তিত হবে
+        }
+    }
+
+    function loadDownlineUsers() {
+        const downlineContainer = document.getElementById('downline-users-list');
+        db.collection("users").where("referredBy", "==", currentUser.uid).onSnapshot((snapshot) => {
+            if (snapshot.empty) {
+                downlineContainer.innerHTML = `<p style="font-size: 12px; color: var(--text-sub); text-align: center; padding: 10px;">কোনো রেফারকৃত ইউজার নেই</p>`;
+                return;
+            }
+
+            downlineContainer.innerHTML = "";
+            snapshot.forEach(doc => {
+                const dUser = doc.data();
+                const tasksDone = dUser.completedTasks || 0;
+                const isRewarded = dUser.refRewarded === true;
+
+                downlineContainer.innerHTML += `
+                    <div class="downline-item">
+                        <div>
+                            <div style="font-weight: bold; font-size: 13px; color: var(--accent-cyan);">${dUser.username || 'User'}</div>
+                            <small style="color: var(--text-sub);">টাস্ক সম্পন্ন: ${tasksDone}/5</small>
+                        </div>
+                        <span style="font-size: 11px; font-weight: bold; color: ${isRewarded ? '#10b981' : '#f59e0b'};">
+                            ${isRewarded ? 'বোনাস প্রাপ্ত' : 'প্রক্রিয়াধীন'}
+                        </span>
+                    </div>
+                `;
+            });
+        });
+    }
+
     function watchAd() {
         const limit = parseInt(adminSettings.taskLimit) || 20;
 
@@ -672,7 +792,7 @@
         }
 
         if (dynamicAdsList.length === 0) {
-            showToast("বর্তমানে কোনো অ্যাড লিংক নেই। পরে চেষ্টা করুন।");
+            showToast("বর্তমানে কোনো টাস্ক অ্যাড লিংক নেই। পরে চেষ্টা করুন।");
             return;
         }
 
@@ -720,7 +840,6 @@
                 }).then(() => {
                     showToast(`সফলভাবে টাস্ক সম্পন্ন হয়েছে! +TK ${reward}`);
 
-                    // ডাউনলাইন ইউজার অন্তত ৫টি অ্যাড দেখার পরই কেবল আপলাইন বোনাস ও রেফার কাউন্ট পাবে
                     if (newCompletedTasks >= 5 && userData.referredBy && !userData.refRewarded) {
                         giveUplineReward(userData.referredBy);
                         db.collection("users").doc(currentUser.uid).update({ refRewarded: true });
@@ -747,11 +866,9 @@
             if (doc.exists) {
                 const uplineData = doc.data();
                 const updatedRefBalance = parseFloat(uplineData.balance || 0) + refBonus;
-                const updatedTotalRef = (uplineData.totalRef || 0) + 1;
 
                 db.collection("users").doc(uplineId).update({
-                    balance: updatedRefBalance,
-                    totalRef: updatedTotalRef
+                    balance: updatedRefBalance
                 });
             }
         });
