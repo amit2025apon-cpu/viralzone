@@ -604,6 +604,7 @@
     let isWatchingAd = false;
     let adTimerInterval = null;
     let cooldownTimerInterval = null;
+    let visibilityHandler = null;
 
     const urlParams = new URLSearchParams(window.location.search);
     const urlRefCode = urlParams.get('startapp') ? urlParams.get('startapp').replace('ref_', '') : null;
@@ -717,7 +718,6 @@
                     return;
                 }
 
-                // ১২ ঘণ্টা পার হলে টাস্ক অটোমেটিক রিসেট চেক করা
                 checkAndResetTasksIfTimePassed();
 
                 document.getElementById('user-display-name').innerText = userData.username || "User";
@@ -741,7 +741,6 @@
         loadWithdrawHistory();
     }
 
-    // ১২ ঘণ্টা পর পর টাস্ক অটো রিসেট চেক করার ফাংশন
     function checkAndResetTasksIfTimePassed() {
         const limit = parseInt(adminSettings.taskLimit) || 20;
         const completed = userData.completedTasks || 0;
@@ -755,16 +754,16 @@
             const diffHours = diffMs / (1000 * 60 * 60);
 
             if (diffHours >= 12) {
-                // ১২ ঘণ্টা পূর্ণ হয়ে গেছে, টাস্ক রিসেট করে দাও
                 db.collection("users").doc(currentUser.uid).update({
                     completedTasks: 0,
                     lastTaskResetTime: null
                 });
                 cooldownBox.style.display = 'none';
-                watchBtn.disabled = false;
-                watchBtn.innerHTML = `<i class="fa-solid fa-play"></i> অ্যাড চালু করুন`;
+                if (!isWatchingAd) {
+                    watchBtn.disabled = false;
+                    watchBtn.innerHTML = `<i class="fa-solid fa-play"></i> অ্যাড চালু করুন`;
+                }
             } else {
-                // এখনো ১২ ঘণ্টা পূর্ণ হয়নি, কাউন্টডাউন দেখাও
                 const remainingMs = (12 * 60 * 60 * 1000) - diffMs;
                 startCooldownCountdown(remainingMs);
             }
@@ -781,8 +780,10 @@
         const cooldownBox = document.getElementById('cooldown-timer-box');
         const countdownSpan = document.getElementById('cooldown-countdown');
 
-        watchBtn.disabled = true;
-        watchBtn.innerHTML = `<i class="fa-solid fa-lock"></i> টাস্ক লিমিট শেষ`;
+        if (!isWatchingAd) {
+            watchBtn.disabled = true;
+            watchBtn.innerHTML = `<i class="fa-solid fa-lock"></i> টাস্ক লিমিট শেষ`;
+        }
         cooldownBox.style.display = 'block';
 
         if (cooldownTimerInterval) clearInterval(cooldownTimerInterval);
@@ -796,9 +797,10 @@
             if (timeLeft <= 0) {
                 clearInterval(cooldownTimerInterval);
                 cooldownBox.style.display = 'none';
-                watchBtn.disabled = false;
-                watchBtn.innerHTML = `<i class="fa-solid fa-play"></i> অ্যাড চালু করুন`;
-                // ফায়ারবেসেও রিসেট করে দেওয়া
+                if (!isWatchingAd) {
+                    watchBtn.disabled = false;
+                    watchBtn.innerHTML = `<i class="fa-solid fa-play"></i> অ্যাড চালু করুন`;
+                }
                 db.collection("users").doc(currentUser.uid).update({
                     completedTasks: 0,
                     lastTaskResetTime: null
@@ -814,7 +816,6 @@
         }, 1000);
     }
 
-    // অটোমেটিক ব্যানার পরিবর্তন (রোটেট) করার ফাংশন - প্রতি ২০ সেকেন্ড পর পর
     function startBannerRotation() {
         if (bannerInterval) clearInterval(bannerInterval);
 
@@ -896,12 +897,15 @@
         
         adBtn.innerHTML = `<i class="fa-solid fa-clock"></i> অপেক্ষা করুন (${timeLeft} সেকেন্ড)...`;
 
-        const visibilityHandler = () => {
+        // যদি ইউজার ট্যাব পরিবর্তন বা অ্যাপ থেকে দূরে চলে যায়
+        visibilityHandler = () => {
             if (document.hidden && isWatchingAd) {
                 cancelTaskDueToLeaving();
             }
         };
         document.addEventListener("visibilitychange", visibilityHandler);
+
+        if (adTimerInterval) clearInterval(adTimerInterval);
 
         adTimerInterval = setInterval(() => {
             if (!isWatchingAd) {
@@ -913,6 +917,7 @@
             if (timeLeft > 0) {
                 adBtn.innerHTML = `<i class="fa-solid fa-clock"></i> অপেক্ষা করুন (${timeLeft} সেকেন্ড)...`;
             } else {
+                // সফলভাবে ২০ সেকেন্ড পূর্ণ হয়েছে
                 clearInterval(adTimerInterval);
                 document.removeEventListener("visibilitychange", visibilityHandler);
                 isWatchingAd = false;
@@ -929,7 +934,6 @@
                     balance: newBalance
                 };
 
-                // যদি আজকের শেষ টাস্ক (যেমন ২০তম টাস্ক) পূরণ হয়, তবে বর্তমান সময়টি সেভ করে রাখা যাতে ১২ ঘণ্টার কাউন্টডাউন শুরু হয়
                 if (newCompletedTasks >= limit) {
                     updateData.lastTaskResetTime = firebase.firestore.FieldValue.serverTimestamp();
                 }
@@ -943,22 +947,25 @@
                     }
 
                     if (newCompletedTasks >= limit) {
-                        startCooldownCountdown(12 * 60 * 60 * 1000); // ১২ ঘণ্টা কাউন্টডাউন শুরু
+                        startCooldownCountdown(12 * 60 * 60 * 1000);
                     }
                 });
             }
         }, 1000);
+    }
 
-        window.cancelTaskDueToLeaving = function() {
-            if (!isWatchingAd) return;
-            clearInterval(adTimerInterval);
+    function cancelTaskDueToLeaving() {
+        if (!isWatchingAd) return;
+        clearInterval(adTimerInterval);
+        if (visibilityHandler) {
             document.removeEventListener("visibilitychange", visibilityHandler);
-            isWatchingAd = false;
-
-            adBtn.disabled = false;
-            adBtn.innerHTML = `<i class="fa-solid fa-play"></i> অ্যাড চালু করুন`;
-            showToast("অ্যাডের ভেতর ২০ সেকেন্ড না থাকায় টাস্ক বাতিল হয়েছে!");
         }
+        isWatchingAd = false;
+
+        const adBtn = document.getElementById('watch-ad-btn');
+        adBtn.disabled = false;
+        adBtn.innerHTML = `<i class="fa-solid fa-play"></i> অ্যাড চালু করুন`;
+        showToast("অ্যাডের ভেতর ২০ সেকেন্ড না থাকায় টাস্ক বাতিল হয়েছে!");
     }
 
     function giveUplineReward(uplineId) {
