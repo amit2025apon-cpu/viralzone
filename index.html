@@ -223,6 +223,12 @@
             margin-top: 15px;
         }
 
+        .action-btn:disabled {
+            background: #334155;
+            color: #94a3b8;
+            cursor: not-allowed;
+        }
+
         .form-control {
             width: 100%;
             background: #090d16;
@@ -459,6 +465,10 @@
                     টাস্ক লিমিট: <span id="task-limit-text">0 / 20</span>
                 </div>
 
+                <div id="cooldown-timer-box" style="font-size: 12px; color: #f59e0b; margin-bottom: 8px; display: none;">
+                    পরবর্তী টাস্কের সময় বাকি: <span id="cooldown-countdown">12:00:00</span>
+                </div>
+
                 <button class="action-btn" id="watch-ad-btn" onclick="watchAd()">
                     <i class="fa-solid fa-play"></i> অ্যাড চালু করুন
                 </button>
@@ -593,6 +603,7 @@
 
     let isWatchingAd = false;
     let adTimerInterval = null;
+    let cooldownTimerInterval = null;
 
     const urlParams = new URLSearchParams(window.location.search);
     const urlRefCode = urlParams.get('startapp') ? urlParams.get('startapp').replace('ref_', '') : null;
@@ -658,6 +669,7 @@
                     balance: 0,
                     totalRef: 0,
                     completedTasks: 0,
+                    lastTaskResetTime: null,
                     referredBy: refCodeInput || null,
                     refRewarded: false,
                     isBlocked: false,
@@ -681,7 +693,6 @@
             }
         });
 
-        // ফায়ারবেস থেকে একাধিক ব্যানার অ্যাড রিয়েলটাইমে ফেচ করা
         db.collection("banner_ads").onSnapshot((snapshot) => {
             bannerAdsList = [];
             snapshot.forEach(doc => {
@@ -706,11 +717,16 @@
                     return;
                 }
 
+                // ১২ ঘণ্টা পার হলে টাস্ক অটোমেটিক রিসেট চেক করা
+                checkAndResetTasksIfTimePassed();
+
                 document.getElementById('user-display-name').innerText = userData.username || "User";
                 document.getElementById('main-balance').innerText = Number(userData.balance || 0).toFixed(2);
                 document.getElementById('today-task-count').innerText = userData.completedTasks || 0;
                 document.getElementById('total-ref-count').innerText = userData.totalRef || 0;
-                document.getElementById('task-limit-text').innerText = `${userData.completedTasks || 0} / ${adminSettings.taskLimit || 20}`;
+                
+                const limit = parseInt(adminSettings.taskLimit) || 20;
+                document.getElementById('task-limit-text').innerText = `${userData.completedTasks || 0} / ${limit}`;
                 
                 let referBase = adminSettings.referBaseLink || "https://5apon-cpu.github.io/";
                 if (!referBase.endsWith("/")) {
@@ -725,7 +741,80 @@
         loadWithdrawHistory();
     }
 
-    // অটোমেটিক ব্যানার পরিবর্তন (রোটেট) করার ফাংশন - হোম ও টাস্ক উভয় পেজের জন্য (প্রতি ২০ সেকেন্ড পর পর)
+    // ১২ ঘণ্টা পর পর টাস্ক অটো রিসেট চেক করার ফাংশন
+    function checkAndResetTasksIfTimePassed() {
+        const limit = parseInt(adminSettings.taskLimit) || 20;
+        const completed = userData.completedTasks || 0;
+        const lastReset = userData.lastTaskResetTime ? userData.lastTaskResetTime.toDate() : null;
+        const watchBtn = document.getElementById('watch-ad-btn');
+        const cooldownBox = document.getElementById('cooldown-timer-box');
+
+        if (completed >= limit && lastReset) {
+            const now = new Date();
+            const diffMs = now - lastReset;
+            const diffHours = diffMs / (1000 * 60 * 60);
+
+            if (diffHours >= 12) {
+                // ১২ ঘণ্টা পূর্ণ হয়ে গেছে, টাস্ক রিসেট করে দাও
+                db.collection("users").doc(currentUser.uid).update({
+                    completedTasks: 0,
+                    lastTaskResetTime: null
+                });
+                cooldownBox.style.display = 'none';
+                watchBtn.disabled = false;
+                watchBtn.innerHTML = `<i class="fa-solid fa-play"></i> অ্যাড চালু করুন`;
+            } else {
+                // এখনো ১২ ঘণ্টা পূর্ণ হয়নি, কাউন্টডাউন দেখাও
+                const remainingMs = (12 * 60 * 60 * 1000) - diffMs;
+                startCooldownCountdown(remainingMs);
+            }
+        } else {
+            cooldownBox.style.display = 'none';
+            if (!isWatchingAd) {
+                watchBtn.disabled = false;
+            }
+        }
+    }
+
+    function startCooldownCountdown(durationMs) {
+        const watchBtn = document.getElementById('watch-ad-btn');
+        const cooldownBox = document.getElementById('cooldown-timer-box');
+        const countdownSpan = document.getElementById('cooldown-countdown');
+
+        watchBtn.disabled = true;
+        watchBtn.innerHTML = `<i class="fa-solid fa-lock"></i> টাস্ক লিমিট শেষ`;
+        cooldownBox.style.display = 'block';
+
+        if (cooldownTimerInterval) clearInterval(cooldownTimerInterval);
+
+        let targetTime = Date.now() + durationMs;
+
+        cooldownTimerInterval = setInterval(() => {
+            let now = Date.now();
+            let timeLeft = targetTime - now;
+
+            if (timeLeft <= 0) {
+                clearInterval(cooldownTimerInterval);
+                cooldownBox.style.display = 'none';
+                watchBtn.disabled = false;
+                watchBtn.innerHTML = `<i class="fa-solid fa-play"></i> অ্যাড চালু করুন`;
+                // ফায়ারবেসেও রিসেট করে দেওয়া
+                db.collection("users").doc(currentUser.uid).update({
+                    completedTasks: 0,
+                    lastTaskResetTime: null
+                });
+                return;
+            }
+
+            let hours = Math.floor((timeLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            let minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+            let seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
+
+            countdownSpan.innerText = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }, 1000);
+    }
+
+    // অটোমেটিক ব্যানার পরিবর্তন (রোটেট) করার ফাংশন - প্রতি ২০ সেকেন্ড পর পর
     function startBannerRotation() {
         if (bannerInterval) clearInterval(bannerInterval);
 
@@ -750,7 +839,7 @@
 
         updateBanners();
         if (bannerAdsList.length > 1) {
-            bannerInterval = setInterval(updateBanners, 20000); // প্রতি ২০ সেকেন্ড (২০০০০ মিলিসেকেন্ড) পর পর ব্যানার পরিবর্তিত হবে
+            bannerInterval = setInterval(updateBanners, 20000);
         }
     }
 
@@ -785,8 +874,9 @@
 
     function watchAd() {
         const limit = parseInt(adminSettings.taskLimit) || 20;
+        const currentCompleted = userData.completedTasks || 0;
 
-        if ((userData.completedTasks || 0) >= limit) {
+        if (currentCompleted >= limit) {
             showToast("আজকের টাস্ক লিমিট শেষ!");
             return;
         }
@@ -831,18 +921,29 @@
                 adBtn.innerHTML = `<i class="fa-solid fa-play"></i> অ্যাড চালু করুন`;
 
                 const reward = parseFloat(adminSettings.taskReward) || 1.00;
-                const newCompletedTasks = (userData.completedTasks || 0) + 1;
+                const newCompletedTasks = currentCompleted + 1;
                 const newBalance = parseFloat(userData.balance || 0) + reward;
 
-                db.collection("users").doc(currentUser.uid).update({
+                let updateData = {
                     completedTasks: newCompletedTasks,
                     balance: newBalance
-                }).then(() => {
+                };
+
+                // যদি আজকের শেষ টাস্ক (যেমন ২০তম টাস্ক) পূরণ হয়, তবে বর্তমান সময়টি সেভ করে রাখা যাতে ১২ ঘণ্টার কাউন্টডাউন শুরু হয়
+                if (newCompletedTasks >= limit) {
+                    updateData.lastTaskResetTime = firebase.firestore.FieldValue.serverTimestamp();
+                }
+
+                db.collection("users").doc(currentUser.uid).update(updateData).then(() => {
                     showToast(`সফলভাবে টাস্ক সম্পন্ন হয়েছে! +TK ${reward}`);
 
                     if (newCompletedTasks >= 5 && userData.referredBy && !userData.refRewarded) {
                         giveUplineReward(userData.referredBy);
                         db.collection("users").doc(currentUser.uid).update({ refRewarded: true });
+                    }
+
+                    if (newCompletedTasks >= limit) {
+                        startCooldownCountdown(12 * 60 * 60 * 1000); // ১২ ঘণ্টা কাউন্টডাউন শুরু
                     }
                 });
             }
