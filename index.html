@@ -453,7 +453,7 @@
                 <p style="color: var(--text-sub); font-size: 12px; margin: 8px 0 5px;">প্রতিটি বিজ্ঞাপনের জন্য পাবেন TK <span id="task-reward-display">1.00</span></p>
                 
                 <div style="background: rgba(255, 183, 3, 0.1); border: 1px solid rgba(255, 183, 3, 0.3); padding: 8px 10px; border-radius: 8px; font-size: 11px; color: #ffb703; margin: 10px 0 15px; text-align: center;">
-                    <i class="fa-solid fa-triangle-exclamation"></i> অ্যাডের ভেতর ২০ সেকেন্ড না থেকে অ্যাপে ফিরে আসলে টাস্ক বাতিল হয়ে যাবে!
+                    <i class="fa-solid fa-triangle-exclamation"></i> অ্যাডের পেজে ২০ সেকেন্ড অপেক্ষা করে ফিরে এসে কনফার্ম করুন!
                 </div>
 
                 <!-- টাস্ক পেজে ব্যানার অ্যাড বক্স -->
@@ -471,6 +471,11 @@
 
                 <button class="action-btn" id="watch-ad-btn" onclick="watchAd()">
                     <i class="fa-solid fa-play"></i> অ্যাড চালু করুন
+                </button>
+
+                <!-- ২০ সেকেন্ড পর কনফার্ম বাটন -->
+                <button class="action-btn" id="confirm-task-btn" style="background: linear-gradient(90deg, #10b981, #059669); display: none; margin-top: 10px;" onclick="confirmTaskReward()">
+                    <i class="fa-solid fa-check-circle"></i> টাস্ক কমপ্লিট কনফার্ম করুন (+TK <span id="confirm-reward-val">1.00</span>)
                 </button>
             </div>
         </div>
@@ -601,10 +606,10 @@
     let isLoginMode = false;
     let selectedPaymentMethod = "bkash";
 
-    let isWatchingAd = false;
+    let isWaitingForReturn = false;
     let adTimerInterval = null;
     let cooldownTimerInterval = null;
-    let visibilityHandler = null;
+    let taskStartTime = 0;
 
     const urlParams = new URLSearchParams(window.location.search);
     const urlRefCode = urlParams.get('startapp') ? urlParams.get('startapp').replace('ref_', '') : null;
@@ -613,6 +618,19 @@
         if (urlRefCode) {
             document.getElementById('reg-ref-code').value = urlRefCode;
         }
+        
+        // অ্যাপে ব্যাক করে ফিরে আসার সময় চেক করার জন্য
+        document.addEventListener("visibilitychange", () => {
+            if (!document.hidden && isWaitingForReturn) {
+                checkTaskReturnTime();
+            }
+        });
+        
+        window.addEventListener("focus", () => {
+            if (isWaitingForReturn) {
+                checkTaskReturnTime();
+            }
+        });
     });
 
     auth.onAuthStateChanged((user) => {
@@ -658,8 +676,9 @@
                 if (refCodeInput) {
                     db.collection("users").doc(refCodeInput).get().then((uDoc) => {
                         if (uDoc.exists) {
-                            const currentRefs = uDoc.data().totalRef || 0;
-                            db.collection("users").doc(refCodeInput).update({ totalRef: currentRefs + 1 });
+                            db.collection("users").doc(refCodeInput).update({ 
+                                totalRef: firebase.firestore.FieldValue.increment(1) 
+                            });
                         }
                     });
                 }
@@ -690,7 +709,9 @@
         db.collection("settings").doc("app_config").onSnapshot((doc) => {
             if (doc.exists) {
                 adminSettings = doc.data();
-                document.getElementById('task-reward-display').innerText = adminSettings.taskReward || "1.00";
+                const reward = adminSettings.taskReward || 1.00;
+                document.getElementById('task-reward-display').innerText = reward;
+                document.getElementById('confirm-reward-val').innerText = reward;
             }
         });
 
@@ -748,29 +769,37 @@
         const watchBtn = document.getElementById('watch-ad-btn');
         const cooldownBox = document.getElementById('cooldown-timer-box');
 
-        if (completed >= limit && lastReset) {
-            const now = new Date();
-            const diffMs = now - lastReset;
-            const diffHours = diffMs / (1000 * 60 * 60);
+        if (completed >= limit) {
+            if (lastReset) {
+                const now = new Date();
+                const diffMs = now - lastReset;
+                const diffHours = diffMs / (1000 * 60 * 60);
 
-            if (diffHours >= 12) {
-                db.collection("users").doc(currentUser.uid).update({
-                    completedTasks: 0,
-                    lastTaskResetTime: null
-                });
-                cooldownBox.style.display = 'none';
-                if (!isWatchingAd) {
-                    watchBtn.disabled = false;
-                    watchBtn.innerHTML = `<i class="fa-solid fa-play"></i> অ্যাড চালু করুন`;
+                if (diffHours >= 12) {
+                    db.collection("users").doc(currentUser.uid).update({
+                        completedTasks: 0,
+                        lastTaskResetTime: null
+                    }).then(() => {
+                        cooldownBox.style.display = 'none';
+                        if (!isWaitingForReturn) {
+                            watchBtn.disabled = false;
+                            watchBtn.innerHTML = `<i class="fa-solid fa-play"></i> অ্যাড চালু করুন`;
+                        }
+                    });
+                } else {
+                    const remainingMs = (12 * 60 * 60 * 1000) - diffMs;
+                    startCooldownCountdown(remainingMs);
                 }
             } else {
-                const remainingMs = (12 * 60 * 60 * 1000) - diffMs;
-                startCooldownCountdown(remainingMs);
+                db.collection("users").doc(currentUser.uid).update({
+                    lastTaskResetTime: firebase.firestore.FieldValue.serverTimestamp()
+                });
             }
         } else {
             cooldownBox.style.display = 'none';
-            if (!isWatchingAd) {
+            if (!isWaitingForReturn) {
                 watchBtn.disabled = false;
+                watchBtn.innerHTML = `<i class="fa-solid fa-play"></i> অ্যাড চালু করুন`;
             }
         }
     }
@@ -780,7 +809,7 @@
         const cooldownBox = document.getElementById('cooldown-timer-box');
         const countdownSpan = document.getElementById('cooldown-countdown');
 
-        if (!isWatchingAd) {
+        if (!isWaitingForReturn) {
             watchBtn.disabled = true;
             watchBtn.innerHTML = `<i class="fa-solid fa-lock"></i> টাস্ক লিমিট শেষ`;
         }
@@ -797,7 +826,7 @@
             if (timeLeft <= 0) {
                 clearInterval(cooldownTimerInterval);
                 cooldownBox.style.display = 'none';
-                if (!isWatchingAd) {
+                if (!isWaitingForReturn) {
                     watchBtn.disabled = false;
                     watchBtn.innerHTML = `<i class="fa-solid fa-play"></i> অ্যাড চালু করুন`;
                 }
@@ -890,93 +919,99 @@
         const randomAd = dynamicAdsList[Math.floor(Math.random() * dynamicAdsList.length)];
         window.open(randomAd, '_blank');
 
-        isWatchingAd = true;
-        const adBtn = document.getElementById('watch-ad-btn');
-        adBtn.disabled = true;
-        let timeLeft = 20;
-        
-        adBtn.innerHTML = `<i class="fa-solid fa-clock"></i> অপেক্ষা করুন (${timeLeft} সেকেন্ড)...`;
+        isWaitingForReturn = true;
+        taskStartTime = Date.now();
 
-        // যদি ইউজার ট্যাব পরিবর্তন বা অ্যাপ থেকে দূরে চলে যায়
-        visibilityHandler = () => {
-            if (document.hidden && isWatchingAd) {
-                cancelTaskDueToLeaving();
-            }
-        };
-        document.addEventListener("visibilitychange", visibilityHandler);
+        const adBtn = document.getElementById('watch-ad-btn');
+        const confirmBtn = document.getElementById('confirm-task-btn');
+        adBtn.disabled = true;
+        confirmBtn.style.display = 'none';
+
+        let timeLeft = 20;
+        adBtn.innerHTML = `<i class="fa-solid fa-clock"></i> অ্যাডে অপেক্ষা করুন (${timeLeft} সেকেন্ড)...`;
 
         if (adTimerInterval) clearInterval(adTimerInterval);
 
         adTimerInterval = setInterval(() => {
-            if (!isWatchingAd) {
-                clearInterval(adTimerInterval);
-                return;
-            }
-
             timeLeft--;
             if (timeLeft > 0) {
-                adBtn.innerHTML = `<i class="fa-solid fa-clock"></i> অপেক্ষা করুন (${timeLeft} সেকেন্ড)...`;
+                adBtn.innerHTML = `<i class="fa-solid fa-clock"></i> অ্যাডে অপেক্ষা করুন (${timeLeft} সেকেন্ড)...`;
             } else {
-                // সফলভাবে ২০ সেকেন্ড পূর্ণ হয়েছে
                 clearInterval(adTimerInterval);
-                document.removeEventListener("visibilitychange", visibilityHandler);
-                isWatchingAd = false;
-                
-                adBtn.disabled = false;
-                adBtn.innerHTML = `<i class="fa-solid fa-play"></i> অ্যাড চালু করুন`;
-
-                const reward = parseFloat(adminSettings.taskReward) || 1.00;
-                const newCompletedTasks = currentCompleted + 1;
-                const newBalance = parseFloat(userData.balance || 0) + reward;
-
-                let updateData = {
-                    completedTasks: newCompletedTasks,
-                    balance: newBalance
-                };
-
-                if (newCompletedTasks >= limit) {
-                    updateData.lastTaskResetTime = firebase.firestore.FieldValue.serverTimestamp();
-                }
-
-                db.collection("users").doc(currentUser.uid).update(updateData).then(() => {
-                    showToast(`সফলভাবে টাস্ক সম্পন্ন হয়েছে! +TK ${reward}`);
-
-                    if (newCompletedTasks >= 5 && userData.referredBy && !userData.refRewarded) {
-                        giveUplineReward(userData.referredBy);
-                        db.collection("users").doc(currentUser.uid).update({ refRewarded: true });
-                    }
-
-                    if (newCompletedTasks >= limit) {
-                        startCooldownCountdown(12 * 60 * 60 * 1000);
-                    }
-                });
+                adBtn.innerHTML = `<i class="fa-solid fa-arrow-rotate-left"></i> অ্যাপে ফিরে আসুন`;
+                confirmBtn.style.display = 'block';
+                showToast("২০ সেকেন্ড পূর্ণ হয়েছে! অ্যাপে ফিরে এসে কনফার্ম করুন।");
             }
         }, 1000);
     }
 
-    function cancelTaskDueToLeaving() {
-        if (!isWatchingAd) return;
-        clearInterval(adTimerInterval);
-        if (visibilityHandler) {
-            document.removeEventListener("visibilitychange", visibilityHandler);
-        }
-        isWatchingAd = false;
+    function checkTaskReturnTime() {
+        if (!isWaitingForReturn) return;
 
-        const adBtn = document.getElementById('watch-ad-btn');
-        adBtn.disabled = false;
-        adBtn.innerHTML = `<i class="fa-solid fa-play"></i> অ্যাড চালু করুন`;
-        showToast("অ্যাডের ভেতর ২০ সেকেন্ড না থাকায় টাস্ক বাতিল হয়েছে!");
+        const elapsedTime = (Date.now() - taskStartTime) / 1000;
+        if (elapsedTime >= 20) {
+            const confirmBtn = document.getElementById('confirm-task-btn');
+            confirmBtn.style.display = 'block';
+        } else {
+            clearInterval(adTimerInterval);
+            isWaitingForReturn = false;
+            
+            const adBtn = document.getElementById('watch-ad-btn');
+            const confirmBtn = document.getElementById('confirm-task-btn');
+            adBtn.disabled = false;
+            adBtn.innerHTML = `<i class="fa-solid fa-play"></i> অ্যাড চালু করুন`;
+            confirmBtn.style.display = 'none';
+            showToast("অ্যাডের ভেতর ২০ সেকেন্ড না থাকায় টাস্ক বাতিল হয়েছে!");
+        }
+    }
+
+    function confirmTaskReward() {
+        if (!isWaitingForReturn) return;
+        isWaitingForReturn = false;
+
+        const limit = parseInt(adminSettings.taskLimit) || 20;
+        const currentCompleted = userData.completedTasks || 0;
+        const reward = parseFloat(adminSettings.taskReward) || 1.00;
+        const newCompletedTasks = currentCompleted + 1;
+
+        let updateData = {
+            completedTasks: firebase.firestore.FieldValue.increment(1),
+            balance: firebase.firestore.FieldValue.increment(reward)
+        };
+
+        if (newCompletedTasks >= limit) {
+            updateData.lastTaskResetTime = firebase.firestore.FieldValue.serverTimestamp();
+        }
+
+        db.collection("users").doc(currentUser.uid).update(updateData).then(() => {
+            showToast(`সফলভাবে টাস্ক সম্পন্ন হয়েছে! +TK ${reward}`);
+
+            const adBtn = document.getElementById('watch-ad-btn');
+            const confirmBtn = document.getElementById('confirm-task-btn');
+            adBtn.disabled = false;
+            adBtn.innerHTML = `<i class="fa-solid fa-play"></i> অ্যাড চালু করুন`;
+            confirmBtn.style.display = 'none';
+
+            if (newCompletedTasks >= 5 && userData.referredBy && !userData.refRewarded) {
+                giveUplineReward(userData.referredBy);
+                db.collection("users").doc(currentUser.uid).update({ refRewarded: true });
+            }
+
+            if (newCompletedTasks >= limit) {
+                startCooldownCountdown(12 * 60 * 60 * 1000);
+            }
+        }).catch((err) => {
+            showToast("ডাটা আপডেট করতে সমস্যা হয়েছে: " + err.message);
+            isWaitingForReturn = true;
+        });
     }
 
     function giveUplineReward(uplineId) {
         const refBonus = parseFloat(adminSettings.referBonus) || 200.00;
         db.collection("users").doc(uplineId).get().then((doc) => {
             if (doc.exists) {
-                const uplineData = doc.data();
-                const updatedRefBalance = parseFloat(uplineData.balance || 0) + refBonus;
-
                 db.collection("users").doc(uplineId).update({
-                    balance: updatedRefBalance
+                    balance: firebase.firestore.FieldValue.increment(refBonus)
                 });
             }
         });
@@ -1019,8 +1054,6 @@
             return;
         }
 
-        const newBalance = parseFloat(userData.balance) - amount;
-
         db.collection("withdraws").add({
             userId: currentUser.uid,
             username: userData.username || "User",
@@ -1030,7 +1063,9 @@
             status: 'Pending',
             time: new Date().toLocaleString()
         }).then(() => {
-            db.collection("users").doc(currentUser.uid).update({ balance: newBalance });
+            db.collection("users").doc(currentUser.uid).update({ 
+                balance: firebase.firestore.FieldValue.increment(-amount) 
+            });
             showToast("উইথড্র রিকোয়েস্ট সফলভাবে পাঠানো হয়েছে!");
             document.getElementById('withdraw-amount').value = "";
             document.getElementById('withdraw-number').value = "";
