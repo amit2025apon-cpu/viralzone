@@ -293,6 +293,40 @@
             overflow: hidden;
         }
 
+        .in-app-ad-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(9, 13, 22, 0.98);
+            z-index: 200;
+            display: none;
+            flex-direction: column;
+            padding: 15px;
+        }
+
+        .ad-header-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--card-bg);
+            padding: 12px 15px;
+            border-radius: 12px;
+            margin-bottom: 10px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .ad-iframe-container {
+            flex: 1;
+            background: #fff;
+            border-radius: 12px;
+            overflow: hidden;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
         .bottom-nav {
             position: fixed;
             bottom: 0;
@@ -340,7 +374,7 @@
             font-size: 12px;
             font-weight: 700;
             display: none;
-            z-index: 150;
+            z-index: 250;
         }
     </style>
 
@@ -352,6 +386,23 @@
 
 <div class="app-container">
     <div class="toast" id="toast">নোটিফিকেশন</div>
+
+    <div class="in-app-ad-overlay" id="in-app-ad-screen">
+        <div class="ad-header-bar">
+            <div id="ad-timer-status" style="font-size: 13px; font-weight: bold; color: var(--accent-cyan);">
+                অ্যাডে অপেক্ষা করুন: ২০ সেকেন্ড
+            </div>
+            <button onclick="closeAdEarly()" style="background: rgba(239,68,68,0.2); border: 1px solid #ef4444; color: #ef4444; padding: 5px 10px; border-radius: 6px; font-size: 11px; cursor: pointer;">
+                বাতিল করুন
+            </button>
+        </div>
+        <div class="ad-iframe-container">
+            <iframe id="task-ad-iframe" src="" style="width: 100%; height: 100%; border: none;"></iframe>
+        </div>
+        <button class="action-btn" id="in-app-confirm-btn" style="background: linear-gradient(90deg, #10b981, #059669); display: none; margin-top: 10px;" onclick="confirmTaskReward()">
+            <i class="fa-solid fa-check-circle"></i> টাস্ক কমপ্লিট কনফার্ম করুন (+TK <span id="modal-reward-val">1.00</span>)
+        </button>
+    </div>
 
     <!-- AUTH SCREEN -->
     <div class="auth-screen" id="auth-screen">
@@ -413,7 +464,6 @@
                 </button>
             </div>
 
-            <!-- হোম পেজে ব্যানার অ্যাড বক্স -->
             <div class="section-box" style="padding: 12px; margin-bottom: 15px;">
                 <div class="banner-ad-box" id="home-banner-ad-container" style="margin: 0; border-color: rgba(0, 210, 255, 0.3);">
                     <span style="font-size: 11px; color: var(--text-sub);">ব্যানার বিজ্ঞাপন লোড হচ্ছে...</span>
@@ -443,6 +493,19 @@
                     <div style="font-size: 20px; font-weight: bold; margin-top: 5px;" id="total-ref-count">0</div>
                 </div>
             </div>
+
+            <!-- লাইফটাইম বা সর্বমোট কাজের হিসাব -->
+            <div class="section-box" style="text-align: left; background: rgba(0, 210, 255, 0.05); border-color: rgba(0, 210, 255, 0.2);">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
+                    <i class="fa-solid fa-medal" style="color: var(--accent-cyan); font-size: 20px;"></i>
+                    <h5 style="color: var(--accent-cyan);">সকল দিনের কাজের জমা হিস্টরি</h5>
+                </div>
+                <p style="font-size: 11px; color: var(--text-sub); margin-bottom: 10px;">আজকের টাস্ক রিসেট বা জিরো হলেও এখানে আপনার আজ পর্যন্ত করা সকল কাজের মোট হিসাব জমা থাকবে।</p>
+                <div style="display: flex; justify-content: space-between; align-items: center; background: #090d16; padding: 12px; border-radius: 12px;">
+                    <span style="font-size: 14px; font-weight: bold;">সর্বমোট সম্পন্ন টাস্ক:</span>
+                    <span style="font-size: 22px; font-weight: 800; color: var(--accent-cyan);" id="lifetime-task-count">0টি</span>
+                </div>
+            </div>
         </div>
 
         <!-- PAGE 2: TASK -->
@@ -453,10 +516,9 @@
                 <p style="color: var(--text-sub); font-size: 12px; margin: 8px 0 5px;">প্রতিটি বিজ্ঞাপনের জন্য পাবেন TK <span id="task-reward-display">1.00</span></p>
                 
                 <div style="background: rgba(255, 183, 3, 0.1); border: 1px solid rgba(255, 183, 3, 0.3); padding: 8px 10px; border-radius: 8px; font-size: 11px; color: #ffb703; margin: 10px 0 15px; text-align: center;">
-                    <i class="fa-solid fa-triangle-exclamation"></i> অ্যাডের পেজে ২০ সেকেন্ড অপেক্ষা করে ফিরে এসে কনফার্ম করুন!
+                    <i class="fa-solid fa-triangle-exclamation"></i> ওয়েবসাইটের ভেতরে অ্যাড স্ক্রিনে <span id="warning-timer-text">20</span> সেকেন্ড অপেক্ষা করে কনফার্ম করুন!
                 </div>
 
-                <!-- টাস্ক পেজে ব্যানার অ্যাড বক্স -->
                 <div class="banner-ad-box" id="task-banner-ad-container">
                     <span style="font-size: 11px; color: var(--text-sub);">ব্যানার বিজ্ঞাপন লোড হচ্ছে...</span>
                 </div>
@@ -469,13 +531,8 @@
                     পরবর্তী টাস্কের সময় বাকি: <span id="cooldown-countdown">12:00:00</span>
                 </div>
 
-                <button class="action-btn" id="watch-ad-btn" onclick="watchAd()">
+                <button class="action-btn" id="watch-ad-btn" onclick="watchAdInApp()">
                     <i class="fa-solid fa-play"></i> অ্যাড চালু করুন
-                </button>
-
-                <!-- ২০ সেকেন্ড পর কনফার্ম বাটন -->
-                <button class="action-btn" id="confirm-task-btn" style="background: linear-gradient(90deg, #10b981, #059669); display: none; margin-top: 10px;" onclick="confirmTaskReward()">
-                    <i class="fa-solid fa-check-circle"></i> টাস্ক কমপ্লিট কনফার্ম করুন (+TK <span id="confirm-reward-val">1.00</span>)
                 </button>
             </div>
         </div>
@@ -508,7 +565,6 @@
                 <button class="action-btn" onclick="copyRefLink()"><i class="fa-solid fa-copy"></i> লিংক কপি করুন</button>
             </div>
 
-            <!-- ডাউনলাইন ইউজার লিস্ট সেকশন -->
             <div class="section-box" style="text-align: left;">
                 <h3 style="font-size: 15px; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px;">
                     <i class="fa-solid fa-user-group"></i> আমার রেফারকৃত ইউজারগণ
@@ -597,7 +653,7 @@
 
     let currentUser = null;
     let userData = {};
-    let adminSettings = { taskReward: 1, taskLimit: 20, referBonus: 200, referBaseLink: "https://5apon-cpu.github.io/", telegramLink: "https://t.me", videoLink: "https://youtube.com" };
+    let adminSettings = { taskReward: 1, taskLimit: 20, taskTimer: 20, referBonus: 200, referBaseLink: "https://5apon-cpu.github.io/", telegramLink: "https://t.me", videoLink: "https://youtube.com" };
     let dynamicAdsList = [];
     let bannerAdsList = [];
     let currentBannerIndex = 0;
@@ -606,10 +662,8 @@
     let isLoginMode = false;
     let selectedPaymentMethod = "bkash";
 
-    let isWaitingForReturn = false;
-    let adTimerInterval = null;
+    let inAppAdTimer = null;
     let cooldownTimerInterval = null;
-    let taskStartTime = 0;
 
     const urlParams = new URLSearchParams(window.location.search);
     const urlRefCode = urlParams.get('startapp') ? urlParams.get('startapp').replace('ref_', '') : null;
@@ -618,19 +672,6 @@
         if (urlRefCode) {
             document.getElementById('reg-ref-code').value = urlRefCode;
         }
-        
-        // অ্যাপে ব্যাক করে ফিরে আসার সময় চেক করার জন্য
-        document.addEventListener("visibilitychange", () => {
-            if (!document.hidden && isWaitingForReturn) {
-                checkTaskReturnTime();
-            }
-        });
-        
-        window.addEventListener("focus", () => {
-            if (isWaitingForReturn) {
-                checkTaskReturnTime();
-            }
-        });
     });
 
     auth.onAuthStateChanged((user) => {
@@ -644,6 +685,7 @@
         }
     });
 
+    // সাইন আপ এবং লগইন পেজ টগল ঠিকঠাক করার ফাংশন
     function toggleAuthMode() {
         isLoginMode = !isLoginMode;
         document.getElementById('auth-title').innerText = isLoginMode ? "লগইন করুন" : "একাউন্ট তৈরি করুন";
@@ -689,6 +731,7 @@
                     balance: 0,
                     totalRef: 0,
                     completedTasks: 0,
+                    lifetimeTasks: 0,
                     lastTaskResetTime: null,
                     referredBy: refCodeInput || null,
                     refRewarded: false,
@@ -710,8 +753,10 @@
             if (doc.exists) {
                 adminSettings = doc.data();
                 const reward = adminSettings.taskReward || 1.00;
+                const timerSec = adminSettings.taskTimer || 20;
                 document.getElementById('task-reward-display').innerText = reward;
-                document.getElementById('confirm-reward-val').innerText = reward;
+                document.getElementById('modal-reward-val').innerText = reward;
+                document.getElementById('warning-timer-text').innerText = timerSec;
             }
         });
 
@@ -745,6 +790,7 @@
                 document.getElementById('main-balance').innerText = Number(userData.balance || 0).toFixed(2);
                 document.getElementById('today-task-count').innerText = userData.completedTasks || 0;
                 document.getElementById('total-ref-count').innerText = userData.totalRef || 0;
+                document.getElementById('lifetime-task-count').innerText = (userData.lifetimeTasks || 0) + "টি";
                 
                 const limit = parseInt(adminSettings.taskLimit) || 20;
                 document.getElementById('task-limit-text').innerText = `${userData.completedTasks || 0} / ${limit}`;
@@ -781,10 +827,8 @@
                         lastTaskResetTime: null
                     }).then(() => {
                         cooldownBox.style.display = 'none';
-                        if (!isWaitingForReturn) {
-                            watchBtn.disabled = false;
-                            watchBtn.innerHTML = `<i class="fa-solid fa-play"></i> অ্যাড চালু করুন`;
-                        }
+                        watchBtn.disabled = false;
+                        watchBtn.innerHTML = `<i class="fa-solid fa-play"></i> অ্যাড চালু করুন`;
                     });
                 } else {
                     const remainingMs = (12 * 60 * 60 * 1000) - diffMs;
@@ -797,10 +841,8 @@
             }
         } else {
             cooldownBox.style.display = 'none';
-            if (!isWaitingForReturn) {
-                watchBtn.disabled = false;
-                watchBtn.innerHTML = `<i class="fa-solid fa-play"></i> অ্যাড চালু করুন`;
-            }
+            watchBtn.disabled = false;
+            watchBtn.innerHTML = `<i class="fa-solid fa-play"></i> অ্যাড চালু করুন`;
         }
     }
 
@@ -809,10 +851,8 @@
         const cooldownBox = document.getElementById('cooldown-timer-box');
         const countdownSpan = document.getElementById('cooldown-countdown');
 
-        if (!isWaitingForReturn) {
-            watchBtn.disabled = true;
-            watchBtn.innerHTML = `<i class="fa-solid fa-lock"></i> টাস্ক লিমিট শেষ`;
-        }
+        watchBtn.disabled = true;
+        watchBtn.innerHTML = `<i class="fa-solid fa-lock"></i> টাস্ক লিমিট শেষ`;
         cooldownBox.style.display = 'block';
 
         if (cooldownTimerInterval) clearInterval(cooldownTimerInterval);
@@ -826,10 +866,8 @@
             if (timeLeft <= 0) {
                 clearInterval(cooldownTimerInterval);
                 cooldownBox.style.display = 'none';
-                if (!isWaitingForReturn) {
-                    watchBtn.disabled = false;
-                    watchBtn.innerHTML = `<i class="fa-solid fa-play"></i> অ্যাড চালু করুন`;
-                }
+                watchBtn.disabled = false;
+                watchBtn.innerHTML = `<i class="fa-solid fa-play"></i> অ্যাড চালু করুন`;
                 db.collection("users").doc(currentUser.uid).update({
                     completedTasks: 0,
                     lastTaskResetTime: null
@@ -902,7 +940,7 @@
         });
     }
 
-    function watchAd() {
+    function watchAdInApp() {
         const limit = parseInt(adminSettings.taskLimit) || 20;
         const currentCompleted = userData.completedTasks || 0;
 
@@ -917,57 +955,41 @@
         }
 
         const randomAd = dynamicAdsList[Math.floor(Math.random() * dynamicAdsList.length)];
-        window.open(randomAd, '_blank');
+        
+        document.getElementById('task-ad-iframe').src = randomAd;
+        document.getElementById('in-app-ad-screen').style.display = 'flex';
+        document.getElementById('in-app-confirm-btn').style.display = 'none';
 
-        isWaitingForReturn = true;
-        taskStartTime = Date.now();
+        let timeLeft = parseInt(adminSettings.taskTimer) || 20;
+        const statusEl = document.getElementById('ad-timer-status');
+        statusEl.innerText = `অ্যাডে অপেক্ষা করুন: ${timeLeft} সেকেন্ড`;
 
-        const adBtn = document.getElementById('watch-ad-btn');
-        const confirmBtn = document.getElementById('confirm-task-btn');
-        adBtn.disabled = true;
-        confirmBtn.style.display = 'none';
+        if (inAppAdTimer) clearInterval(inAppAdTimer);
 
-        let timeLeft = 20;
-        adBtn.innerHTML = `<i class="fa-solid fa-clock"></i> অ্যাডে অপেক্ষা করুন (${timeLeft} সেকেন্ড)...`;
-
-        if (adTimerInterval) clearInterval(adTimerInterval);
-
-        adTimerInterval = setInterval(() => {
+        inAppAdTimer = setInterval(() => {
             timeLeft--;
             if (timeLeft > 0) {
-                adBtn.innerHTML = `<i class="fa-solid fa-clock"></i> অ্যাডে অপেক্ষা করুন (${timeLeft} সেকেন্ড)...`;
+                statusEl.innerText = `অ্যাডে অপেক্ষা করুন: ${timeLeft} সেকেন্ড`;
             } else {
-                clearInterval(adTimerInterval);
-                adBtn.innerHTML = `<i class="fa-solid fa-arrow-rotate-left"></i> অ্যাপে ফিরে আসুন`;
-                confirmBtn.style.display = 'block';
-                showToast("২০ সেকেন্ড পূর্ণ হয়েছে! অ্যাপে ফিরে এসে কনফার্ম করুন।");
+                clearInterval(inAppAdTimer);
+                statusEl.innerText = `নির্ধারিত সময় পূর্ণ হয়েছে!`;
+                document.getElementById('in-app-confirm-btn').style.display = 'block';
+                showToast("সময় শেষ! এখন কনফার্ম বাটনে চাপ দিন।");
             }
         }, 1000);
     }
 
-    function checkTaskReturnTime() {
-        if (!isWaitingForReturn) return;
-
-        const elapsedTime = (Date.now() - taskStartTime) / 1000;
-        if (elapsedTime >= 20) {
-            const confirmBtn = document.getElementById('confirm-task-btn');
-            confirmBtn.style.display = 'block';
-        } else {
-            clearInterval(adTimerInterval);
-            isWaitingForReturn = false;
-            
-            const adBtn = document.getElementById('watch-ad-btn');
-            const confirmBtn = document.getElementById('confirm-task-btn');
-            adBtn.disabled = false;
-            adBtn.innerHTML = `<i class="fa-solid fa-play"></i> অ্যাড চালু করুন`;
-            confirmBtn.style.display = 'none';
-            showToast("অ্যাডের ভেতর ২০ সেকেন্ড না থাকায় টাস্ক বাতিল হয়েছে!");
-        }
+    function closeAdEarly() {
+        if (inAppAdTimer) clearInterval(inAppAdTimer);
+        document.getElementById('in-app-ad-screen').style.display = 'none';
+        document.getElementById('task-ad-iframe').src = "";
+        showToast("টাস্ক বাতিল করা হয়েছে!");
     }
 
     function confirmTaskReward() {
-        if (!isWaitingForReturn) return;
-        isWaitingForReturn = false;
+        if (inAppAdTimer) clearInterval(inAppAdTimer);
+        document.getElementById('in-app-ad-screen').style.display = 'none';
+        document.getElementById('task-ad-iframe').src = "";
 
         const limit = parseInt(adminSettings.taskLimit) || 20;
         const currentCompleted = userData.completedTasks || 0;
@@ -976,6 +998,7 @@
 
         let updateData = {
             completedTasks: firebase.firestore.FieldValue.increment(1),
+            lifetimeTasks: firebase.firestore.FieldValue.increment(1),
             balance: firebase.firestore.FieldValue.increment(reward)
         };
 
@@ -985,12 +1008,6 @@
 
         db.collection("users").doc(currentUser.uid).update(updateData).then(() => {
             showToast(`সফলভাবে টাস্ক সম্পন্ন হয়েছে! +TK ${reward}`);
-
-            const adBtn = document.getElementById('watch-ad-btn');
-            const confirmBtn = document.getElementById('confirm-task-btn');
-            adBtn.disabled = false;
-            adBtn.innerHTML = `<i class="fa-solid fa-play"></i> অ্যাড চালু করুন`;
-            confirmBtn.style.display = 'none';
 
             if (newCompletedTasks >= 5 && userData.referredBy && !userData.refRewarded) {
                 giveUplineReward(userData.referredBy);
@@ -1002,7 +1019,6 @@
             }
         }).catch((err) => {
             showToast("ডাটা আপডেট করতে সমস্যা হয়েছে: " + err.message);
-            isWaitingForReturn = true;
         });
     }
 
@@ -1054,6 +1070,10 @@
             return;
         }
 
+        db.collection("users").doc(currentUser.uid).update({ 
+            balance: firebase.firestore.FieldValue.increment(-amount) 
+        });
+
         db.collection("withdraws").add({
             userId: currentUser.uid,
             username: userData.username || "User",
@@ -1063,9 +1083,6 @@
             status: 'Pending',
             time: new Date().toLocaleString()
         }).then(() => {
-            db.collection("users").doc(currentUser.uid).update({ 
-                balance: firebase.firestore.FieldValue.increment(-amount) 
-            });
             showToast("উইথড্র রিকোয়েস্ট সফলভাবে পাঠানো হয়েছে!");
             document.getElementById('withdraw-amount').value = "";
             document.getElementById('withdraw-number').value = "";
@@ -1115,11 +1132,16 @@
         document.querySelectorAll('.tab-page').forEach(page => page.classList.remove('active'));
         document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
 
-        document.getElementById(`page-${tabId}`).classList.add('active');
+        const targetPage = document.getElementById(`page-${tabId}`);
+        if (targetPage) {
+            targetPage.classList.add('active');
+        }
         
         const navMapping = { home: 0, task: 1, support: 2, refer: 3, wallet: 4 };
-        if (navMapping[tabId] !== undefined) {
-            document.querySelectorAll('.nav-item')[navMapping[tabId]].classList.add('active');
+        const navIndex = navMapping[tabId];
+        const navItems = document.querySelectorAll('.nav-item');
+        if (navIndex !== undefined && navItems[navIndex]) {
+            navItems[navIndex].classList.add('active');
         }
     }
 
